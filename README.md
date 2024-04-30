@@ -51,6 +51,7 @@ To train the model(s) in the paper, run this command:
 ```train
 sh ./scripts/train.sh
 ```
+- If you use single GPU, -m torch.distributed.launch --nproc_per_node=2 needs to be removed. Otherwise, --nproc_per_node=x means the number of your GPUs.
 Note: The users are advised to modify parameters according to the actual situation.
 The disparity range is **NOT** defined by scripts and need to be define in **train.py** as it's not symmetrical.
 ## Evaluation
