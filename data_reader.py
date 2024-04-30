@@ -118,7 +118,8 @@ class CustomDataset(Dataset):
     def __len__(self):
         return len(self.left_filenames)
     def read_left(self,left_dir):
-        filename = left_dir.replace("withgroundtruth", "whu")
+        filename = left_dir#.replace("withgroundtruth", "whu")
+        print(filename)
         # print(filename)
         img = cv2.imread(filename, cv2.IMREAD_UNCHANGED)
         if (len(np.shape(img))>2):
@@ -135,7 +136,7 @@ class CustomDataset(Dataset):
         # dy = np.expand_dims(dy.astype('float32'), -1)
         return img.astype('float32'), dx.astype('float32'), dy.astype('float32')
     def read_right(self,right_dir):
-        filename = right_dir.replace("withgroundtruth", "whu")
+        filename = right_dir#.replace("withgroundtruth", "whu")
         img = cv2.imread(filename, cv2.IMREAD_UNCHANGED)
         #img = fill(img)
         # meani, stdi = mean, std
@@ -148,7 +149,7 @@ class CustomDataset(Dataset):
         img = (img - meani) / stdi
         return img.astype('float32') #np.expand_dims(img.astype('float32'), -1)
     def read_disp(self,dispname):
-        filename = dispname.replace("withgroundtruth", "whu")
+        filename = dispname#.replace("withgroundtruth", "whu")
         disp = cv2.imread(filename, cv2.IMREAD_UNCHANGED)
         # disp_16x = cv2.resize(disp, (64, 64)) / 16.0
         # disp_8x = cv2.resize(disp, (128, 128)) / 8.0
@@ -168,7 +169,8 @@ class CustomDataset(Dataset):
         gx_ori = np.expand_dims(gx_ori, 0)
         gy_ori = np.expand_dims(gy_ori, 0)
         right_image_ori = np.expand_dims(right_image_ori, 0)
-        return {"left":left_image_ori, 
+        return {"left_filename":self.left_filenames[index],
+            "left":left_image_ori, 
         "right":right_image_ori, 
         "gx":gx_ori, 
         "gy":gy_ori,

@@ -1,5 +1,5 @@
 import os, sys
-os.environ['CUDA_VISIBLE_DEVICES'] ='2'
+os.environ['CUDA_VISIBLE_DEVICES'] ='0'
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -167,6 +167,7 @@ parser = argparse.ArgumentParser(description='Cascade and Fused Cost Volume for 
 parser.add_argument('--maxdisp', type=int, default=192, help='maximum disparity')
 
 parser.add_argument('--testlist', required=True, help='testing list')
+parser.add_argument('--savepath', help='savepath')
 
 parser.add_argument('--batch_size', type=int, default=4, help='training batch size')
 parser.add_argument('--test_batch_size', type=int, default=4, help='testing batch size')
@@ -234,7 +235,7 @@ if args.loadckpt:
     # load the checkpoint file specified by args.loadckpt
     print("loading model {}".format(args.loadckpt))
     state_dict = torch.load(args.loadckpt)
-    model.load_state_dict(state_dict['model'])
+    model.load_state_dict(state_dict['model'], strict=True)
 
 
 
@@ -271,7 +272,7 @@ def test():
     #error = 100
     for batch_idx, sample in enumerate(TestImgLoader):
         start_time = time.time()
-        scalar_outputs = test_sample(sample)
+        scalar_outputs = test_sample(sample, args.savepath)
         if (not is_distributed) or (dist.get_rank() == 0):
             if scalar_outputs["epe"]>=0.0:
                 # save_images(logger, 'test', image_outputs, global_step)
@@ -288,7 +289,7 @@ def test():
         print("avg_test_scalars", avg_test_scalars)
             
 
-def test_sample(sample):
+def test_sample(sample, savepath):
     global model
     model.eval()
     left, right,disp = sample["left"].cuda(), sample["right"].cuda(), sample["disp"].cuda()
@@ -297,7 +298,7 @@ def test_sample(sample):
         [disparity2, disparity1, disparity0, final_disp] = model([left, right,gx ,gy])
     disp2, disp1, disp0, final_disp = upsample_auto(disparity2, disp),  upsample_auto(disparity1, disp), \
     upsample_auto( disparity0, disp), upsample_auto(final_disp, disp)
-    weight_loss = [0.5, 0.7, 1.0 , 0.6]
+    weight_loss = [0.5, 0.7, 1.0, 0.6]
     fullloss = weight_loss[0]*loss_epe(disp2, disp, -args.maxdisp, args.maxdisp) + \
         weight_loss[1]* loss_epe(disp1, disp, -args.maxdisp, args.maxdisp)+ \
             weight_loss[2] *loss_epe(disp0, disp, -args.maxdisp, args.maxdisp) + \
@@ -311,6 +312,12 @@ def test_sample(sample):
     scalar_outputs={"epe":epe,
                     "d1":d1, 
     "loss": fullloss}
+   
+    writepath = savepath+sample["left_filename"][0].split("\\")[-1]
+    write = Image.fromarray(final_disp[0,0,:,:].detach().cpu().numpy())
+    write.save(writepath)
+    print(writepath)
+    print(scalar_outputs)
     return tensor2float(scalar_outputs)
     #error, nums, epe = compute_epe(disparity[-1][0,:,:,0], disp[-1][:,:,0], max_disp= self.max_disp,min_disp=self.min_disp)
 
@@ -326,12 +333,7 @@ def compute_epe(est, gt, min_disp=None, max_disp=None):
     # mask2 = np.where(gt < min_disp, zeros, ones)
     mask = mask & (gt<max_disp) &(gt>=min_disp)
     # mask = mask1 & mask2
-    # 我们将被测试的图像超出范围的部分也去掉 正式测试时应该删掉！
-    '''
-    mask3 = np.where(est >= max_disp, zeros, ones)
-    mask4 = np.where(est < min_disp, zeros, ones)
-    mask = mask & mask3 & mask4'''
-    # 本部分结束
+  
     error = torch.sum(torch.abs(est - gt)[mask])
     nums = torch.sum(mask)
     epe = error / nums
@@ -353,13 +355,7 @@ def compute_d1(est, gt, min_disp=None, max_disp=None):
     # mask = mask1 & mask2
     mask = (gt!=-999.0)&(~torch.isnan(gt))
     mask = mask & (gt>=min_disp) & (gt< max_disp)
-#我们将被测试的图像超出范围的部分也去掉 正式测试时应该删掉！
-    '''
-    mask3 = np.where(est >=max_disp, zeros, ones)
-    mask4 = np.where(est<min_disp, zeros, ones)
-    mask= mask&mask3&mask4'''
 
-#本部分结束
     err_map = torch.abs(est - gt)[mask]
     err_mask = err_map > 3
     err_disps = torch.sum(err_mask)
